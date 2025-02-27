@@ -18,7 +18,7 @@ for l1_coeff in [0.004, 0.0018, 0.0008]:
     cfg["input_unit_norm"] = True
     cfg["top_k"] = 32
     cfg["dict_size"] = 768 * 16
-    cfg['wandb_project'] = 'batchtopk_comparison'
+    cfg['wandb_project'] = 'wta mi'
     cfg['act_size'] = 768
     cfg['device'] = 'cuda'
     cfg['bandwidth'] = 0.001
@@ -52,7 +52,7 @@ for sae_type in ['topk', 'batchtopk']:
         cfg["input_unit_norm"] = True
         cfg["top_k"] = 32
         cfg["dict_size"] = 768 * 16
-        cfg['wandb_project'] = 'batchtopk_comparison'
+        cfg['wandb_project'] = 'wta mi'
         cfg['l1_coeff'] = 0.
         cfg['act_size'] = 768
         cfg['device'] = 'cuda'
@@ -89,7 +89,7 @@ for sae_type in ['topk', 'batchtopk']:
         cfg["input_unit_norm"] = True
         cfg["top_k"] = 32
         cfg["dict_size"] = dict_size
-        cfg['wandb_project'] = 'batchtopk_comparison'
+        cfg['wandb_project'] = 'wta mi'
         cfg['l1_coeff'] = 0.
         cfg['act_size'] = 768
         cfg['device'] = 'cuda'

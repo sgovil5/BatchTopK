@@ -230,7 +230,88 @@ class VanillaSAE(BaseAutoencoder):
         }
         return output
 
+class WTASAE(BaseAutoencoder):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.sparsity_rate = cfg.get('sparsity_rate', 0.5)
 
+    def forward(self, x):
+        x, x_mean, x_std = self.preprocess_input(x)
+        
+        #encoder
+        x_cent = x-self.b_dec
+        pre_acts = x_cent @ self.W_enc + self.b_enc
+        acts = torch.relu(pre_acts)
+        
+        #apply WTA
+        batch_size = x.shape[0]
+        k_per_feature = max(1, int(batch_size * self.sparsity_rate))
+        
+        acts_t = acts.t()
+        
+        topk_values, _ = torch.topk(acts_t, k_per_feature, dim=1)
+        thresholds = topk_values[:, -1].unsqueeze(1)
+        
+        mask = (acts >=thresholds).float()
+        acts_wta = (acts_t * mask).t()
+        
+        #decoder
+        x_reconstruct = acts_wta @ self.W_dec + self.b_dec
+        
+        self.update_inactive_features(acts_wta)
+        
+        output = self.get_loss_dict(x, x_reconstruct, acts, acts_wta, x_mean, x_std)
+        return output
+    
+    def get_loss_dict(self, x, x_reconstruct, acts, acts_wta, x_mean, x_std):
+        l2_loss = (x_reconstruct.float() - x.float()).pow(2).mean()
+        l1_norm = acts_wta.float().abs().sum(-1).mean()
+        l1_loss = self.cfg["l1_coeff"] * l1_norm
+        l0_norm = (acts_wta > 0).float().sum(-1).mean()
+        
+        aux_loss = self.get_auxiliary_loss(x, x_reconstruct, acts)
+        
+        loss = l2_loss + l1_loss + aux_loss
+        num_dead_features = (
+            self.num_batches_not_active > self.cfg["n_batches_to_dead"]
+        ).sum()
+        
+        sae_out = self.postprocess_output(x_reconstruct, x_mean, x_std)
+        
+        output = {
+            "sae_out": sae_out,
+            "feature_acts": acts_wta,
+            "num_dead_features": num_dead_features,
+            "loss": loss,
+            "l1_loss": l1_loss,
+            "l2_loss": l2_loss,
+            "l0_norm": l0_norm,
+            "l1_norm": l1_norm,
+            "aux_loss": aux_loss,
+        }
+        return output
+    
+    def get_auxiliary_loss(self, x, x_reconstruct, acts):
+        dead_features = self.num_batches_not_active >= self.cfg["n_batches_to_dead"]
+        if dead_features.sum() > 0:
+            residual = x.float() - x_reconstruct.float()
+            acts_topk_aux = torch.topk(
+                acts[:, dead_features],
+                min(self.cfg["top_k_aux"], dead_features.sum()),
+                dim=-1,
+            )
+            acts_aux = torch.zeros_like(acts[:, dead_features]).scatter(
+                -1, acts_topk_aux.indices, acts_topk_aux.values
+            )
+            x_reconstruct_aux = acts_aux @ self.W_dec[dead_features]
+            l2_loss_aux = (
+                self.cfg["aux_penalty"]
+                * (x_reconstruct_aux.float() - residual.float()).pow(2).mean()
+            )
+            return l2_loss_aux
+        else:
+            return torch.tensor(0, dtype=x.dtype, device=x.device)
+        
 import torch
 import torch.nn as nn
 import torch.autograd as autograd

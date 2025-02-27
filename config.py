@@ -22,7 +22,7 @@ def get_default_cfg():
         "model_batch_size": 512,
         "num_batches_in_buffer": 10,
         "dataset_path": "Skylion007/openwebtext",
-        "wandb_project": "sparse_autoencoders",
+        "wandb_project": "wta mi",
         "input_unit_norm": True,
         "perf_log_freq": 1000,
         "sae_type": "topk",
